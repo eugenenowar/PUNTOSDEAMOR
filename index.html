@@ -1153,32 +1153,87 @@
     }
 
     async function saveToCloud(showFeedback = false) {
-      if (!isCloudEnabled()) {
-        showToast("La sincronización en nube aún no está configurada.");
-        return;
+  if (!isCloudEnabled()) {
+    showToast("La sincronización en nube aún no está configurada.");
+    return;
+  }
+
+  try {
+    cloudBusy = true;
+    updateCloudStatus("Guardando datos en la nube...");
+
+    state.updatedAt = new Date().toISOString();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    const payloadToSend = {
+      action: "save",
+      state: state
+    };
+
+    /*
+      Primer intento: POST normal.
+      Si el navegador permite leer la respuesta, veremos confirmación real.
+    */
+    try {
+      const response = await fetch(CLOUD_SYNC_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(payloadToSend)
+      });
+
+      const text = await response.text();
+
+      if (!response.ok) {
+        throw new Error(`Respuesta HTTP ${response.status}: ${text}`);
       }
+
+      let payload = {};
       try {
-        cloudBusy = true;
-        updateCloudStatus("Guardando datos en la nube...");
-        const response = await fetch(CLOUD_SYNC_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ action: "save", state })
-        });
-        if (!response.ok) throw new Error(`Respuesta HTTP ${response.status}`);
-        const payload = await response.json();
-        if (payload && payload.ok === false) throw new Error(payload.error || "La nube rechazó el guardado");
-        updateCloudStatus("Último guardado sincronizado con la nube.");
-        if (showFeedback) showToast("Datos guardados en la nube ☁️");
-      } catch (error) {
-        console.error("Error al guardar en la nube:", error);
-        updateCloudStatus("No se pudo guardar en la nube. Los datos permanecen guardados localmente.");
-        if (showFeedback) showToast("No se pudo guardar en la nube.");
-      } finally {
-        cloudBusy = false;
-        updateCloudStatus(elements.syncStatus.textContent);
+        payload = JSON.parse(text);
+      } catch {
+        payload = { ok: true };
       }
+
+      if (payload && payload.ok === false) {
+        throw new Error(payload.error || "La nube rechazó el guardado");
+      }
+
+      updateCloudStatus("Último guardado sincronizado con la nube.");
+      if (showFeedback) showToast("Datos guardados en la nube ☁️");
+      return;
+
+    } catch (normalPostError) {
+      console.warn("POST normal falló. Probando modo compatible:", normalPostError);
+
+      /*
+        Segundo intento: modo compatible.
+        Esto evita bloqueos CORS en algunos navegadores móviles.
+        La respuesta no se puede leer, pero el envío sí puede llegar a Apps Script.
+      */
+      await fetch(CLOUD_SYNC_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(payloadToSend)
+      });
+
+      updateCloudStatus("Guardado enviado a la nube. Verifica la hoja de cálculo.");
+      if (showFeedback) showToast("Datos enviados a la nube ☁️");
     }
+
+  } catch (error) {
+    console.error("Error al guardar en la nube:", error);
+    updateCloudStatus("No se pudo guardar en la nube. Los datos permanecen guardados localmente.");
+    if (showFeedback) showToast("No se pudo guardar en la nube.");
+  } finally {
+    cloudBusy = false;
+    updateCloudStatus(elements.syncStatus.textContent);
+  }
+}
 
     function registerServiceWorker() {
       if (!("serviceWorker" in navigator)) return;
