@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Limpiar caché — Puntos de Amor</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:0;padding:24px;background:#fff7fb;color:#2b2328}
+    main{max-width:720px;margin:auto;background:white;border:3px solid #2b2328;border-radius:24px;padding:24px;box-shadow:8px 10px 0 rgba(0,0,0,.1)}
+    h1{margin-top:0;font-size:clamp(2rem,6vw,3.2rem)}
+    button,a{display:inline-block;margin-top:12px;border:2px solid #2b2328;border-radius:16px;padding:12px 16px;background:#ffd9e8;color:#2b2328;font-weight:800;text-decoration:none;cursor:pointer}
+    pre{white-space:pre-wrap;background:#f6f2f4;border-radius:16px;padding:14px;min-height:120px}
+  </style>
+</head>
+<body>
+<main>
+  <h1>💘 Limpieza de caché</h1>
+  <p>Esta página elimina service workers y cachés antiguas del sitio para que GitHub Pages cargue la versión nueva de la app.</p>
+  <button id="clean">Limpiar ahora</button>
+  <a href="./index.html?v=rescate-final">Abrir app limpia</a>
+  <pre id="log">Listo para limpiar...</pre>
+</main>
+
+<script>
+const log = (msg) => {
+  document.getElementById("log").textContent += "\\n" + msg;
+};
+
+document.getElementById("clean").addEventListener("click", async () => {
+  document.getElementById("log").textContent = "Iniciando limpieza...";
+
+  try {
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      log("Service workers encontrados: " + registrations.length);
+      for (const registration of registrations) {
+        await registration.unregister();
+        log("Service worker eliminado.");
+      }
+    } else {
+      log("Este navegador no usa service workers.");
+    }
+
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      log("Cachés encontradas: " + keys.length);
+      for (const key of keys) {
+        await caches.delete(key);
+        log("Caché eliminada: " + key);
+      }
+    } else {
+      log("Este navegador no tiene Cache Storage disponible.");
+    }
+
+    log("Limpieza terminada. Ahora abre la app con el botón.");
+  } catch (error) {
+    log("ERROR: " + error.message);
+  }
+});
+</script>
+</body>
+</html>
