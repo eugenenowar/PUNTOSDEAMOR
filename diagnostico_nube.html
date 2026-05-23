@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diagnóstico nube — Puntos de Amor</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:0;padding:20px;background:#f6fbff;color:#1d2730}
+    main{max-width:820px;margin:auto;background:#fff;border:3px solid #1d2730;border-radius:24px;padding:22px;box-shadow:8px 10px 0 rgba(0,0,0,.1)}
+    h1{margin-top:0;font-size:clamp(2rem,6vw,3rem)}
+    input{width:100%;padding:13px;border:2px solid #1d2730;border-radius:14px;font-size:1rem}
+    button{margin:10px 8px 0 0;border:2px solid #1d2730;border-radius:14px;padding:12px 15px;background:#dff3ff;color:#1d2730;font-weight:800;cursor:pointer}
+    pre{white-space:pre-wrap;background:#f2f5f7;border-radius:16px;padding:14px;min-height:220px;overflow:auto}
+    .hint{color:#59636d}
+  </style>
+</head>
+<body>
+<main>
+  <h1>☁️ Diagnóstico de nube</h1>
+  <p class="hint">Pega aquí la URL Web App de Apps Script. Debe terminar en <strong>/exec</strong>.</p>
+  <input id="url" placeholder="https://script.google.com/macros/s/XXXX/exec">
+  <div>
+    <button onclick="ping()">1. Probar ping</button>
+    <button onclick="saveTiny()">2. Guardar prueba pequeña</button>
+    <button onclick="loadCloud()">3. Leer nube</button>
+  </div>
+  <pre id="log">Resultados...</pre>
+</main>
+
+<script>
+function write(obj) {
+  document.getElementById("log").textContent =
+    typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+}
+
+function getUrl() {
+  const url = document.getElementById("url").value.trim();
+  if (!url || !url.endsWith("/exec")) {
+    throw new Error("Pega la URL completa de Web App terminada en /exec.");
+  }
+  return url;
+}
+
+function jsonp(baseUrl, params = {}) {
+  return new Promise((resolve, reject) => {
+    const callback = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+    const url = new URL(baseUrl);
+    Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+    url.searchParams.set("callback", callback);
+    url.searchParams.set("t", Date.now());
+
+    const script = document.createElement("script");
+    let done = false;
+
+    window[callback] = (payload) => {
+      done = true;
+      cleanup();
+      resolve(payload);
+    };
+
+    function cleanup() {
+      delete window[callback];
+      script.remove();
+    }
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("No se pudo cargar JSONP. Revisa permisos, URL /exec o despliegue."));
+    };
+
+    setTimeout(() => {
+      if (!done) {
+        cleanup();
+        reject(new Error("Timeout: Apps Script no respondió en 12 segundos."));
+      }
+    }, 12000);
+
+    script.src = url.toString();
+    document.body.appendChild(script);
+  });
+}
+
+async function ping() {
+  try {
+    write("Probando ping...");
+    const result = await jsonp(getUrl(), { action: "ping" });
+    write(result);
+  } catch (e) {
+    write("ERROR PING: " + e.message);
+  }
+}
+
+async function saveTiny() {
+  try {
+    write("Guardando prueba pequeña...");
+    const state = {
+      scores: { vale: Math.floor(Math.random() * 99) + 1, sebas: 0 },
+      entries: [{
+        id: "diagnostico-" + Date.now(),
+        team: "vale",
+        points: 1,
+        source: "diagnostico",
+        createdAt: new Date().toISOString(),
+        resultingScore: 1,
+        missionTitle: "Prueba desde diagnostico_nube.html"
+      }],
+      closures: [],
+      dailyMissions: { date: null, generatedAt: null, missions: [] },
+      usedMissionIds: [],
+      completedMissionKeys: [],
+      missionGenerationHistory: [],
+      updatedAt: new Date().toISOString(),
+      appVersion: "diagnostico-nube"
+    };
+
+    const result = await jsonp(getUrl(), {
+      action: "save",
+      state: JSON.stringify(state)
+    });
+
+    write(result);
+  } catch (e) {
+    write("ERROR SAVE: " + e.message);
+  }
+}
+
+async function loadCloud() {
+  try {
+    write("Leyendo nube...");
+    const result = await jsonp(getUrl(), { action: "load" });
+    write(result);
+  } catch (e) {
+    write("ERROR LOAD: " + e.message);
+  }
+}
+</script>
+</body>
+</html>
